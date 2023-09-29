@@ -42,11 +42,12 @@
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 
 // Paso 1: Inicializamos un string vacío para almacenar el valor que recibiremos
-uint8_t my_str[2] = "";
+uint8_t my_str[4] = "";
 
 // Paso 2: Nos dirigimos al archivo de las interrupciones (stm32l4xx_it.c) para hallar el Callback del UART
 
@@ -55,6 +56,7 @@ uint8_t my_str[2] = "";
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -62,6 +64,19 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+int _write(int file, char *ptr, int len)
+{
+  HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 10);
+  return len;
+}
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+	HAL_UART_Transmit(&huart2, my_str, sizeof(my_str), 1);// Ver el mensaje que acabo de recibir
+	//HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+	HAL_UART_Receive_IT(&huart2, my_str, 4);
+}
+
 
 /* USER CODE END 0 */
 
@@ -93,37 +108,17 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_UART_Receive_IT(&huart2, my_str, 4);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  HAL_UART_Receive_IT(&huart2, my_str, sizeof(my_str));
 
-	  if ((strcmp((char*)my_str,"ON")) == 0)
-	  {
-	  		// Se enciende el LED2
-	  		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
-	  }
-
-	  	// Digita por UART el comando OF
-	  else if ((strcmp((char*)my_str,"OF")) == 0)
-	  {
-	  		// Se apaga el LED2
-	  		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-	  }
-
-	  	// Digita por UART un comando equivocado
-	  else
-	  {
-	  		HAL_UART_Transmit(&huart2, (uint8_t*)"Comando equivocado. Los comandos son: ON - OF \r\n", 48, 1);
-	  }
-	  // Paso 6: Volvemos a esperar un mensaje por UART con interrupción
-	  HAL_UART_Receive_IT(&huart2, my_str, sizeof(my_str));
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -216,6 +211,22 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel7_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -249,15 +260,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-// Paso 4: Copiamos el Callback de Recepción de UART
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-	// Ver el mensaje que acabo de recibir
-	HAL_UART_Transmit(&huart2, my_str, sizeof(my_str), 1);
-	// Para saltar línea (renglón)
-	HAL_UART_Transmit(&huart2,(uint8_t*)"\r\n", 2 , 1);
-}
 
 /* USER CODE END 4 */
 
